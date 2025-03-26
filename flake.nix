@@ -21,29 +21,56 @@
           packages = with pkgs; [
             nodejs
             nodePackages_latest."@angular/cli"
+            dive
           ];
         };
       });
 
-      packages = forEachSupportedSystem ({ pkgs }: {
-        default = pkgs.buildNpmPackage rec {
-          pname = "checkout-angular";
-          version = "0.1.0";
+      packages = forEachSupportedSystem ({ pkgs }: let
+        name = "checkout-angular";
+        version = "0.1.0";
+
+        app = pkgs.buildNpmPackage {
+          pname = name;
+          version = version;
           src = ./.;
           nodejs = pkgs.nodejs;
           npmDepsHash = "sha256-ws06egUImLSztkET2J2s8PInE9VoVbVCiNS7354sAAI=";
-          postInstall = ''
-            mkdir -p $out/bin
-            exe="$out/bin/${pname}"
+
+          installPhase = ''
+            runHook preInstall
+
+            # Create the output directory
+            mkdir -p $out/{bin,lib}
+
+            # Copy the runtime files to output lib
+            cp -R ./dist $out/lib
+            cp -R ./node_modules $out/lib
+            cp ./package.json $out/lib
+
+            # Create the output binary
+            exe="$out/bin/${name}"
             touch $exe
             chmod +x $exe
             echo "
               #!/usr/bin/env bash
-              pushd $out/lib/node_modules/${pname}
+              pushd $out/lib/node_modules/${name}
               ${pkgs.nodejs}/bin/npm run start
               popd;" > $exe
+
+            runHook postInstall
           '';
         };
+        docker = pkgs.dockerTools.buildImage {
+          name = "checkout-angular";
+          tag = version;
+          copyToRoot = [ app ];
+          config.Cmd = [
+            "${app}/bin/${name}"
+          ];
+        };
+      in {
+        inherit app docker;
       });
     };
 }
