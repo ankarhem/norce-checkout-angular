@@ -61,13 +61,12 @@
             runHook postInstall
           '';
         };
-        docker = pkgs.dockerTools.buildImage {
+        docker = pkgs.dockerTools.buildLayeredImage {
           name = "checkout-angular";
-          tag = version;
-          copyToRoot = [ app ];
           config.Cmd = [
             "${app}/bin/${name}"
           ];
+          maxLayers = 120;
         };
       in {
         inherit app docker;
